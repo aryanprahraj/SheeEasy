@@ -122,10 +122,10 @@ export default function FormulaBar() {
           switch (innerOp) {
             case 'avg':
             case 'average':
-              intermediate = nums.reduce((a, b) => a + b, 0) / nums.length
+              intermediate = nums.reduce((a: number, b: number) => a + b, 0) / nums.length
               break
             case 'sum':
-              intermediate = nums.reduce((a, b) => a + b, 0)
+              intermediate = nums.reduce((a: number, b: number) => a + b, 0)
               break
             case 'max':
               intermediate = Math.max(...nums)
