@@ -92,16 +92,6 @@ export default function FormulaBar() {
     try {
       const queryLower = query.toLowerCase()
       
-      // Extract operation and column/row from query
-      let operation = ''
-      if (/\b(sum|add|total)\b/i.test(queryLower)) operation = 'sum'
-      else if (/\b(average|mean|avg)\b/i.test(queryLower)) operation = 'average'
-      else if (/\b(multiply|product)\b/i.test(queryLower)) operation = 'multiply'
-      else if (/\b(max|maximum)\b/i.test(queryLower)) operation = 'max'
-      else if (/\b(min|minimum)\b/i.test(queryLower)) operation = 'min'
-      else if (/\b(count)\b/i.test(queryLower)) operation = 'count'
-      else return null // Can't verify complex operations
-      
       // Extract column letters
       const colMatches = queryLower.match(/\b(?:column|col)s?\s*([a-z])\b/gi) || []
       const columns = colMatches.map(m => {
@@ -110,6 +100,78 @@ export default function FormulaBar() {
       }).filter((l): l is string => l !== null)
       
       if (columns.length === 0) return null // No columns found
+      
+      // Check for NESTED operations (e.g., "sum of avg of A and avg of B")
+      const isNested = /\b(sum|multiply|add|product|divide|subtract)\s+of\s+(avg|average|sum|max|min)/i.test(queryLower)
+      
+      if (isNested && columns.length > 1) {
+        // Parse nested operation: "sum of [avg of A] and [avg of B]"
+        const outerOp = queryLower.match(/\b(sum|multiply|add|product|divide|subtract)\s+of/i)?.[1] || 'sum'
+        const innerOp = queryLower.match(/of\s+(avg|average|sum|max|min)/i)?.[1] || 'avg'
+        
+        // Calculate intermediate results for each column
+        const intermediateResults: number[] = []
+        for (const col of columns) {
+          const colKey = `Column ${col}`
+          const data = allData[colKey] || []
+          const nums = data.filter((v: any) => typeof v === 'number')
+          
+          if (nums.length === 0) continue
+          
+          let intermediate: number
+          switch (innerOp) {
+            case 'avg':
+            case 'average':
+              intermediate = nums.reduce((a, b) => a + b, 0) / nums.length
+              break
+            case 'sum':
+              intermediate = nums.reduce((a, b) => a + b, 0)
+              break
+            case 'max':
+              intermediate = Math.max(...nums)
+              break
+            case 'min':
+              intermediate = Math.min(...nums)
+              break
+            default:
+              continue
+          }
+          intermediateResults.push(intermediate)
+        }
+        
+        if (intermediateResults.length === 0) return null
+        
+        // Apply outer operation to intermediate results
+        let finalResult: number
+        switch (outerOp) {
+          case 'sum':
+          case 'add':
+            finalResult = intermediateResults.reduce((a, b) => a + b, 0)
+            return `sum = ${Math.round(finalResult * 100) / 100}`
+          case 'multiply':
+          case 'product':
+            finalResult = intermediateResults.reduce((a, b) => a * b, 1)
+            return `product = ${Math.round(finalResult * 100) / 100}`
+          case 'divide':
+            finalResult = intermediateResults[0] / intermediateResults[1]
+            return `result = ${Math.round(finalResult * 100) / 100}`
+          case 'subtract':
+            finalResult = intermediateResults[0] - intermediateResults[1]
+            return `result = ${Math.round(finalResult * 100) / 100}`
+          default:
+            return null
+        }
+      }
+      
+      // Handle SIMPLE operations
+      let operation = ''
+      if (/\b(sum|add|total)\b/i.test(queryLower)) operation = 'sum'
+      else if (/\b(average|mean|avg)\b/i.test(queryLower)) operation = 'average'
+      else if (/\b(multiply|product)\b/i.test(queryLower)) operation = 'multiply'
+      else if (/\b(max|maximum)\b/i.test(queryLower)) operation = 'max'
+      else if (/\b(min|minimum)\b/i.test(queryLower)) operation = 'min'
+      else if (/\b(count)\b/i.test(queryLower)) operation = 'count'
+      else return null
       
       // Collect all numeric data from mentioned columns
       const allNumbers: number[] = []
@@ -127,13 +189,13 @@ export default function FormulaBar() {
       switch (operation) {
         case 'sum':
           correctAnswer = allNumbers.reduce((a, b) => a + b, 0)
-          return `sum = ${correctAnswer}`
+          return `sum = ${Math.round(correctAnswer * 100) / 100}`
         case 'average':
           correctAnswer = allNumbers.reduce((a, b) => a + b, 0) / allNumbers.length
-          return `average = ${correctAnswer}`
+          return `average = ${Math.round(correctAnswer * 100) / 100}`
         case 'multiply':
           correctAnswer = allNumbers.reduce((a, b) => a * b, 1)
-          return `product = ${correctAnswer}`
+          return `product = ${Math.round(correctAnswer * 100) / 100}`
         case 'max':
           correctAnswer = Math.max(...allNumbers)
           return `max = ${correctAnswer}`
