@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState } from 'react'
 import { useSpreadsheetStore } from '@/lib/store/spreadsheetStore'
 import { toA1Notation } from '@/lib/formulas/utils'
 import { AIFormulaButton } from './AIFormulaButton'
+import { AIResultModal } from './AIResultModal'
 import { generateFormulaFromNaturalLanguage } from '@/lib/aiFormula'
 import ChartVisualization from './ChartVisualization'
 import { BarChart3, X, Download } from 'lucide-react'
@@ -18,6 +19,7 @@ export default function FormulaBar() {
   const [chartTitle, setChartTitle] = useState('')
   const [multiDatasets, setMultiDatasets] = useState<string[]>([])
   const [isDownloading, setIsDownloading] = useState(false)
+  const [aiResult, setAiResult] = useState<{ result: string; cellLocation: string } | null>(null)
   const {
     selectedCell,
     selectedRange,
@@ -241,12 +243,17 @@ export default function FormulaBar() {
       alert(`Modified ${modifications.length} cell(s)`)
     } else if (formula && formula.trim() !== '') {
       console.log('Inserting result:', formula)
+      
+      const cellLocation = `${String.fromCharCode(65 + selectedCell.col)}${selectedCell.row + 1}`
+      const isFormula = formula.startsWith('=')
+      
       // Check if it's a formula (starts with =) or a calculated result
-      if (formula.startsWith('=')) {
+      if (isFormula) {
         // Start editing and insert the formula
         startEditing(selectedCell.row, selectedCell.col, formula)
       } else {
-        // It's a calculated result - insert directly as value
+        // It's a calculated result - show in modal then insert
+        setAiResult({ result: formula, cellLocation })
         useSpreadsheetStore.getState().setCellValue(selectedCell.row, selectedCell.col, formula)
         
         // Try to prepare chart data - support both single and multi-dataset queries
@@ -604,6 +611,15 @@ export default function FormulaBar() {
             </div>
           </div>
         </>
+      )}
+
+      {/* AI Result Modal */}
+      {aiResult && (
+        <AIResultModal
+          result={aiResult.result}
+          cellLocation={aiResult.cellLocation}
+          onClose={() => setAiResult(null)}
+        />
       )}
     </>
   )
