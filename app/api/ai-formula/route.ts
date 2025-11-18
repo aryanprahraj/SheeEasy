@@ -58,31 +58,50 @@ export async function POST(request: NextRequest) {
             role: 'system',
             content: wantsFormula 
               ? `You are an Excel formula generator. Convert the user's natural language request into a valid Excel-style formula ONLY. Use A1 notation. Do not explain. Do not include backticks or markdown. Respond ONLY with the formula, starting with '='.`
-              : `You are a spreadsheet calculator. The user will ask you to perform calculations on data.
+              : `You are an expert spreadsheet calculator. You perform ACCURATE calculations on numerical data.
 
 CRITICAL RULES:
-1. Perform the EXACT calculation requested using the provided numeric data
-2. Return the result in natural language format
-3. DO NOT return formulas or code
-4. Pay careful attention to the operation: sum, multiply, average, max, min, etc.
+1. Perform EXACT calculations - verify your math
+2. Handle simple operations: sum, average, multiply, max, min, count
+3. Handle complex operations: "sum of avg of A and avg of B", "multiply max of A and min of B"
+4. Handle division: "divide sum of A by count of B"
+5. Handle subtraction: "subtract avg of B from avg of A"
+6. For multi-step calculations: compute each intermediate value, then combine
+7. Return ONLY the final result in the specified format
+8. DO NOT explain your work
 
-RESPONSE FORMAT (use the operation type the user requested):
-- For sum/add/total: "sum = <calculated_value>" or "total = <calculated_value>"
-- For multiply/product: "product = <calculated_value>"
-- For average/mean: "average = <calculated_value>"
-- For max/maximum: "max = <calculated_value>"
-- For min/minimum: "min = <calculated_value>"
-- For count: "count = <calculated_value>"
+RESPONSE FORMATS:
+- Sum/Add/Total: "sum = <number>" or "total = <number>"
+- Multiply/Product: "product = <number>"
+- Divide/Division: "result = <number>" or "division = <number>"
+- Subtract/Difference: "result = <number>" or "difference = <number>"
+- Average/Mean: "average = <number>"
+- Maximum: "max = <number>"
+- Minimum: "min = <number>"
+- Count: "count = <number>"
+- Complex: "result = <number>"
 
 EXAMPLES:
-- Data: [10, 20, 30] → Request: "sum" → Response: "sum = 60"
-- Data: [2, 3, 4] → Request: "multiply" → Response: "product = 24"
-- Data: [1, 10, 15, 12] → Request: "multiply all numbers" → Response: "product = 1800"
-- Data: [10, 20, 30] → Request: "average" → Response: "average = 20"
-- Data: [5, 10, 15] → Request: "max" → Response: "max = 15"
+Simple:
+- [10, 20, 30] → "sum" → "sum = 60"
+- [10, 20, 30] → "average" → "average = 20"
+- [2, 3, 4] → "multiply" → "product = 24"
+- [5, 10, 15, 20] → "max" → "max = 20"
 
-IMPORTANT: Verify your calculation is correct before responding.
-Do not explain. Just return the formatted result.`,
+Complex:
+- Col A [10, 20], Col B [30, 40] → "sum of avg A and avg B" → Steps: avg(A)=15, avg(B)=35, sum=50 → "sum = 50"
+- Col A [5, 15], Col B [10, 20] → "multiply avg A and avg B" → Steps: avg(A)=10, avg(B)=15, product=150 → "product = 150"
+- Col A [100, 200], Col B [2, 4] → "divide sum of A by avg of B" → Steps: sum(A)=300, avg(B)=3, result=100 → "result = 100"
+- Col A [50, 100], Col B [10, 20] → "subtract avg B from avg A" → Steps: avg(A)=75, avg(B)=15, result=60 → "result = 60"
+
+For complex queries:
+1. Parse the operation structure (e.g., "sum of [avg of A] and [avg of B]")
+2. Calculate each intermediate result with the provided data
+3. Apply final operation to combine
+4. Double-check your math
+5. Return formatted answer
+
+Be precise. Verify calculations. Return only the result.`,
           },
           {
             role: 'user',
@@ -136,24 +155,75 @@ function buildPrompt(
     let targetData: any[] = []
     let dataSource = ''
     
-    // Check if asking for specific row (e.g., "row 1", "row 2")
-    const rowMatch = queryLower.match(/\b(?:row|r)\s*(\d+)\b/i)
-    if (rowMatch) {
-      const rowNum = parseInt(rowMatch[1])
-      const rowKey = `Row ${rowNum}`
-      targetData = allColumnData[rowKey] || []
-      dataSource = rowKey
-      console.log(`[AI API] Detected ${rowKey} query, data:`, targetData)
-    }
+    // Check for multiple rows first (e.g., "row 1 and 2", "rows 1, 2, 3")
+    const rowMatches = (queryLower.match(/\b(?:row|r)\s*(\d+)/gi) || []).map(m => {
+      const num = m.match(/\d+/)
+      return num ? parseInt(num[0]) : null
+    }).filter((n): n is number => n !== null)
+    const rowNumbers = Array.from(new Set(rowMatches))
     
-    // Check if asking for specific column (e.g., "column a", "column B")
-    const colMatch = queryLower.match(/\b(?:column|col)\s*([a-z])\b/i)
-    if (colMatch && !rowMatch) { // Only if not already matched to row
-      const colLetter = colMatch[1].toUpperCase()
-      const colKey = `Column ${colLetter}`
-      targetData = allColumnData[colKey] || []
-      dataSource = colKey
-      console.log(`[AI API] Detected ${colKey} query, data:`, targetData)
+    if (rowNumbers.length > 0) {
+      // Combine data from all mentioned rows
+      targetData = []
+      const sources: string[] = []
+      for (const rowNum of rowNumbers) {
+        const rowKey = `Row ${rowNum}`
+        const rowData = allColumnData[rowKey] || []
+        targetData.push(...rowData)
+        sources.push(rowKey)
+      }
+      dataSource = sources.length > 1 ? sources.join(' + ') : sources[0]
+      console.log(`[AI API] Detected rows ${rowNumbers.join(', ')}, data:`, targetData)
+    }
+    // Check for multiple columns (e.g., "column D and E", "columns A, B, C")
+    else {
+      const colMatches = (queryLower.match(/\b(?:column|col)s?\s*([a-z])\b/gi) || []).map(m => {
+        const letter = m.match(/([a-z])$/i)
+        return letter ? letter[1].toUpperCase() : null
+      }).filter((l): l is string => l !== null)
+      const columnLetters = Array.from(new Set(colMatches))
+      
+      if (columnLetters.length > 0) {
+        // Check if query has nested operations (e.g., "sum of avg of A and avg of B")
+        const hasNestedOps = /\b(sum|multiply|add|product)\s+of\s+(avg|average|sum|max|min)/i.test(queryLower)
+        
+        if (hasNestedOps && columnLetters.length > 1) {
+          // For complex queries, provide data per column so AI can do multi-step calc
+          const columnDataMap: Record<string, number[]> = {}
+          for (const colLetter of columnLetters) {
+            const colKey = `Column ${colLetter}`
+            const colData = (allColumnData[colKey] || []).filter((v: any) => typeof v === 'number')
+            columnDataMap[colKey] = colData
+          }
+          
+          // Build detailed prompt for complex calculation
+          prompt += `\n\n=== COMPLEX CALCULATION ===`
+          prompt += `\nUser query: "${query}"`
+          prompt += `\n\nDATA BY COLUMN:`
+          for (const [colKey, values] of Object.entries(columnDataMap)) {
+            prompt += `\n${colKey}: [${values.join(', ')}]`
+          }
+          prompt += `\n\nINSTRUCTIONS:`
+          prompt += `\n1. Identify each intermediate calculation needed (e.g., average of each column)`
+          prompt += `\n2. Compute each intermediate result`
+          prompt += `\n3. Apply final operation to combine results`
+          prompt += `\n4. Return answer in format: "<operation> = <final_result>"`
+          
+          return prompt
+        } else {
+          // Simple multi-column: combine all data
+          targetData = []
+          const sources: string[] = []
+          for (const colLetter of columnLetters) {
+            const colKey = `Column ${colLetter}`
+            const colData = allColumnData[colKey] || []
+            targetData.push(...colData)
+            sources.push(colKey)
+          }
+          dataSource = sources.length > 1 ? sources.join(' + ') : sources[0]
+          console.log(`[AI API] Detected columns ${columnLetters.join(', ')}, data:`, targetData)
+        }
+      }
     }
     
     // If no specific row/column mentioned, use the column where the selected cell is
@@ -165,14 +235,17 @@ function buildPrompt(
       console.log(`[AI API] No specific target, using selected cell's column:`, dataSource)
     }
     
-    // Detect the operation type from the query
+    // Detect the operation type - check most specific first
     let operation = 'calculate'
-    if (/\b(count|how many|number|total.*(?:of|no)|entries|items|people)\b/i.test(queryLower)) operation = 'count'
-    else if (/\b(sum|add|plus)\b/i.test(queryLower)) operation = 'sum'
-    else if (/\b(multiply|product|times)\b/i.test(queryLower)) operation = 'multiply'
+    if (/\b(divide|division|ratio)\b/i.test(queryLower)) operation = 'divide'
+    else if (/\b(subtract|minus|difference|less)\b/i.test(queryLower)) operation = 'subtract'
+    else if (/\b(sum|add(?!ress)|total|sum up)\b/i.test(queryLower)) operation = 'sum'
+    else if (/\b(multiply|product|times|multiplication)\b/i.test(queryLower)) operation = 'multiply'
     else if (/\b(average|mean|avg)\b/i.test(queryLower)) operation = 'average'
-    else if (/\b(max|maximum|largest|highest)\b/i.test(queryLower)) operation = 'max'
-    else if (/\b(min|minimum|smallest|lowest)\b/i.test(queryLower)) operation = 'min'
+    else if (/\b(max(?:imum)?|largest|highest|biggest)\b/i.test(queryLower)) operation = 'max'
+    else if (/\b(min(?:imum)?|smallest|lowest|least)\b/i.test(queryLower)) operation = 'min'
+    else if (/\b(percent(?:age)?|%)\b/i.test(queryLower)) operation = 'percent'
+    else if (/\b(count|how many entries|number of (?:entries|items|values))\b/i.test(queryLower)) operation = 'count'
     
     console.log('[AI API] Detected operation:', operation)
     
@@ -188,58 +261,62 @@ function buildPrompt(
     const valuesToUse = operation === 'count' ? allValues : numericValues
     
     if (valuesToUse.length > 0) {
-      prompt += `\n\n=== IMPORTANT: CALCULATION INSTRUCTIONS ===`
+      prompt += `\n\n=== DATA FOR CALCULATION ===`
       prompt += `\nData source: ${dataSource}`
       
       if (operation === 'count') {
-        // For count, show all items (including text)
-        prompt += `\nAll items in ${dataSource}: [${allValues.map(v => typeof v === 'string' ? `"${v}"` : v).join(', ')}]`
-        prompt += `\nTotal count: ${allValues.length} items`
-        prompt += `\nOperation requested: COUNT`
-        prompt += `\n\nYou MUST:`
-        prompt += `\n1. COUNT all items (including text and numbers): ${allValues.length}`
-        prompt += `\n2. Return: "count = ${allValues.length}"`
+        prompt += `\nAll items: [${allValues.map(v => typeof v === 'string' ? `"${v}"` : v).join(', ')}]`
+        prompt += `\nOperation: COUNT all items (including text and numbers)`
+        prompt += `\n\nPerform the count and return: "count = <result>"`
       } else {
-        // For numeric operations, show only numbers
-        prompt += `\nNumbers to use: [${numericValues.join(', ')}]`
-        prompt += `\nCount: ${numericValues.length} values`
-        prompt += `\nOperation requested: ${operation.toUpperCase()}`
-        prompt += `\n\nYou MUST:`
+        prompt += `\nNumeric values: [${numericValues.join(', ')}]`
+        prompt += `\nOperation: ${operation.toUpperCase()}`
         
-        if (operation === 'multiply') {
-          const expectedProduct = numericValues.reduce((acc: number, val: number) => acc * val, 1)
-          prompt += `\n1. MULTIPLY all these numbers together: ${numericValues.join(' × ')}`
-          prompt += `\n2. Calculate: ${numericValues.join(' × ')} = ${expectedProduct}`
-          prompt += `\n3. Return: "product = ${expectedProduct}"`
-        } else if (operation === 'sum') {
-          const expectedSum = numericValues.reduce((acc: number, val: number) => acc + val, 0)
-          prompt += `\n1. ADD all these numbers together: ${numericValues.join(' + ')}`
-          prompt += `\n2. Calculate: ${numericValues.join(' + ')} = ${expectedSum}`
-          prompt += `\n3. Return: "sum = ${expectedSum}"`
+        if (operation === 'sum') {
+          prompt += `\n\nADD all numbers together: ${numericValues.join(' + ')}`
+          prompt += `\nReturn: "sum = <result>"`
+        } else if (operation === 'multiply') {
+          prompt += `\n\nMULTIPLY all numbers together: ${numericValues.join(' × ')}`
+          prompt += `\nReturn: "product = <result>"`
+        } else if (operation === 'divide') {
+          if (numericValues.length >= 2) {
+            prompt += `\n\nDIVIDE: ${numericValues[0]} ÷ ${numericValues.slice(1).join(' ÷ ')}`
+            prompt += `\nReturn: "result = <result>"`
+          } else {
+            prompt += `\n\nNeed at least 2 values for division. Return: "error = insufficient data"`
+          }
+        } else if (operation === 'subtract') {
+          if (numericValues.length >= 2) {
+            prompt += `\n\nSUBTRACT: ${numericValues[0]} - ${numericValues.slice(1).join(' - ')}`
+            prompt += `\nReturn: "result = <result>"`
+          } else {
+            prompt += `\n\nNeed at least 2 values for subtraction. Return: "error = insufficient data"`
+          }
         } else if (operation === 'average') {
-          const sum = numericValues.reduce((acc: number, val: number) => acc + val, 0)
-          const avg = sum / numericValues.length
-          prompt += `\n1. ADD all numbers: ${numericValues.join(' + ')} = ${sum}`
-          prompt += `\n2. DIVIDE by count: ${sum} ÷ ${numericValues.length} = ${avg}`
-          prompt += `\n3. Return: "average = ${avg}"`
+          prompt += `\n\nCalculate AVERAGE: (${numericValues.join(' + ')}) ÷ ${numericValues.length}`
+          prompt += `\nReturn: "average = <result>"`
         } else if (operation === 'max') {
-          const maxVal = Math.max(...numericValues)
-          prompt += `\n1. Find the LARGEST number from: ${numericValues.join(', ')}`
-          prompt += `\n2. Return: "max = ${maxVal}"`
+          prompt += `\n\nFind MAXIMUM value from: ${numericValues.join(', ')}`
+          prompt += `\nReturn: "max = <result>"`
         } else if (operation === 'min') {
-          const minVal = Math.min(...numericValues)
-          prompt += `\n1. Find the SMALLEST number from: ${numericValues.join(', ')}`
-          prompt += `\n2. Return: "min = ${minVal}"`
+          prompt += `\n\nFind MINIMUM value from: ${numericValues.join(', ')}`
+          prompt += `\nReturn: "min = <result>"`
+        } else if (operation === 'percent') {
+          if (numericValues.length >= 2) {
+            prompt += `\n\nCalculate PERCENTAGE: (${numericValues[0]} / ${numericValues[1]}) × 100`
+            prompt += `\nReturn: "result = <result>%"`
+          } else {
+            prompt += `\n\nNeed 2 values for percentage. Return: "error = insufficient data"`
+          }
         } else {
-          prompt += `\n1. Perform the calculation the user requested`
-          prompt += `\n2. Use these exact numbers: [${numericValues.join(', ')}]`
-          prompt += `\n3. Return the result in natural language format`
+          prompt += `\n\nPerform the calculation using: [${numericValues.join(', ')}]`
+          prompt += `\nReturn in format: "<operation> = <result>"`
         }
       }
       
-      prompt += `\n\nDo NOT explain. Just return the result in the format shown above.`
+      prompt += `\n\nIMPORTANT: Calculate accurately. Do NOT explain. Just return the result.`
     } else {
-      prompt += `\nNo numeric values found in the data.`
+      prompt += `\n\nNo numeric values found in the data.`
     }
   }
 
