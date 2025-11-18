@@ -379,11 +379,18 @@ export default function FormulaBar() {
         startEditing(selectedCell.row, selectedCell.col, formula)
       } else {
         // VERIFY THE CALCULATION - don't trust AI blindly!
-        const verifiedResult = verifyCalculation(query, formula, allData)
-        const finalResult = verifiedResult || formula
+        console.log('=== CALCULATION VERIFICATION ===')
+        console.log('Query:', query)
+        console.log('AI Result:', formula)
+        console.log('Available data:', Object.keys(allData))
         
-        console.log('AI said:', formula)
-        console.log('Verified result:', finalResult)
+        const verifiedResult = verifyCalculation(query, formula, allData)
+        
+        console.log('Verified Result:', verifiedResult)
+        console.log('Using:', verifiedResult || formula)
+        console.log('================================')
+        
+        const finalResult = verifiedResult || formula
         
         // It's a calculated result - show in modal then insert
         setAiResult({ result: finalResult, cellLocation })
