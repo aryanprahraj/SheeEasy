@@ -10,7 +10,7 @@
 <img src="https://img.shields.io/badge/Supabase-Powered-3ECF8E?style=for-the-badge&logo=supabase" />
 <img src="https://img.shields.io/badge/OpenAI-GPT--4o--mini-412991?style=for-the-badge&logo=openai" />
 
-**[Live Demo](#) • [Features](#-features) • [Tech Stack](#-tech-stack) • [Getting Started](#-getting-started)**
+**[🚀 Live Demo](https://sheeeasy.vercel.app)** • **[Features](#-features)** • **[Tech Stack](#-tech-stack)** • **[Getting Started](#-getting-started)**
 
 ---
 
@@ -477,9 +477,9 @@ MIT License - Free for personal and commercial use
 
 **Built by Aryan Prahraj**
 
-- GitHub: [@aryanprahraj](https://github.com/aryanprahraj)
-- LinkedIn: [Connect with me](#)
-- Portfolio: [Your Portfolio](#)
+- 🐙 GitHub: [@aryanprahraj](https://github.com/aryanprahraj)
+- 💼 LinkedIn: [Aryan Prahraj](https://www.linkedin.com/in/aryan-prahraj-89545160/)
+- 📧 Email: [aryanprahraj@gmail.com](mailto:aryanprahraj@gmail.com)
 
 ---
 
@@ -487,7 +487,7 @@ MIT License - Free for personal and commercial use
 
 ### ⭐ Star this repo if you found it helpful!
 
-**[Report Bug](https://github.com/aryanprahraj/SheeEasy/issues)** • **[Request Feature](https://github.com/aryanprahraj/SheeEasy/issues)** • **[Live Demo](#)**
+**[Report Bug](https://github.com/aryanprahraj/SheeEasy/issues)** • **[Request Feature](https://github.com/aryanprahraj/SheeEasy/issues)** • **[🚀 Live Demo](https://sheeeasy.vercel.app)**
 
 ---
 
