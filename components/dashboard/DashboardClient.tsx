@@ -218,7 +218,7 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="Spreadsheet title"
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 outline-none transition-all mb-6"
+              className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100 outline-none transition-all mb-6 text-gray-900 bg-white"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleCreateSpreadsheet()
                 if (e.key === 'Escape') setShowCreateModal(false)
