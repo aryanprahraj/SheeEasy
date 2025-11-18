@@ -87,6 +87,70 @@ export default function FormulaBar() {
     // Shift+Enter allows multi-line input
   }
 
+  // Verify AI calculation by doing it ourselves
+  const verifyCalculation = (query: string, aiResult: string, allData: any): string | null => {
+    try {
+      const queryLower = query.toLowerCase()
+      
+      // Extract operation and column/row from query
+      let operation = ''
+      if (/\b(sum|add|total)\b/i.test(queryLower)) operation = 'sum'
+      else if (/\b(average|mean|avg)\b/i.test(queryLower)) operation = 'average'
+      else if (/\b(multiply|product)\b/i.test(queryLower)) operation = 'multiply'
+      else if (/\b(max|maximum)\b/i.test(queryLower)) operation = 'max'
+      else if (/\b(min|minimum)\b/i.test(queryLower)) operation = 'min'
+      else if (/\b(count)\b/i.test(queryLower)) operation = 'count'
+      else return null // Can't verify complex operations
+      
+      // Extract column letters
+      const colMatches = queryLower.match(/\b(?:column|col)s?\s*([a-z])\b/gi) || []
+      const columns = colMatches.map(m => {
+        const letter = m.match(/([a-z])$/i)
+        return letter ? letter[1].toUpperCase() : null
+      }).filter((l): l is string => l !== null)
+      
+      if (columns.length === 0) return null // No columns found
+      
+      // Collect all numeric data from mentioned columns
+      const allNumbers: number[] = []
+      for (const col of columns) {
+        const colKey = `Column ${col}`
+        const data = allData[colKey] || []
+        const nums = data.filter((v: any) => typeof v === 'number')
+        allNumbers.push(...nums)
+      }
+      
+      if (allNumbers.length === 0) return null
+      
+      // Calculate the correct answer
+      let correctAnswer: number
+      switch (operation) {
+        case 'sum':
+          correctAnswer = allNumbers.reduce((a, b) => a + b, 0)
+          return `sum = ${correctAnswer}`
+        case 'average':
+          correctAnswer = allNumbers.reduce((a, b) => a + b, 0) / allNumbers.length
+          return `average = ${correctAnswer}`
+        case 'multiply':
+          correctAnswer = allNumbers.reduce((a, b) => a * b, 1)
+          return `product = ${correctAnswer}`
+        case 'max':
+          correctAnswer = Math.max(...allNumbers)
+          return `max = ${correctAnswer}`
+        case 'min':
+          correctAnswer = Math.min(...allNumbers)
+          return `min = ${correctAnswer}`
+        case 'count':
+          return `count = ${allNumbers.length}`
+        default:
+          return null
+      }
+    } catch (error) {
+      console.error('Verification error:', error)
+      return null
+    }
+  }
+
   const handleAIFormula = async (query: string) => {
     console.log('FormulaBar: handleAIFormula called with query:', query)
     console.log('FormulaBar: selectedCell:', selectedCell, 'activeSheet:', activeSheet?.name)
@@ -252,9 +316,16 @@ export default function FormulaBar() {
         // Start editing and insert the formula
         startEditing(selectedCell.row, selectedCell.col, formula)
       } else {
+        // VERIFY THE CALCULATION - don't trust AI blindly!
+        const verifiedResult = verifyCalculation(query, formula, allData)
+        const finalResult = verifiedResult || formula
+        
+        console.log('AI said:', formula)
+        console.log('Verified result:', finalResult)
+        
         // It's a calculated result - show in modal then insert
-        setAiResult({ result: formula, cellLocation })
-        useSpreadsheetStore.getState().setCellValue(selectedCell.row, selectedCell.col, formula)
+        setAiResult({ result: finalResult, cellLocation })
+        useSpreadsheetStore.getState().setCellValue(selectedCell.row, selectedCell.col, finalResult)
         
         // Try to prepare chart data - support both single and multi-dataset queries
         // Check if query contains "vs" for aggregated comparison (e.g., "average of column A vs average of column B")
