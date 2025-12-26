@@ -74,7 +74,7 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
 
     setLoading(true)
     try {
-      const { error } = await supabase.from('spreadsheets').delete().eq('id', id)
+      const { error } = await ((supabase as any).from('spreadsheets').delete().eq('id', id))
 
       if (error) throw error
 
@@ -119,10 +119,10 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
 
     setLoading(true)
     try {
-      const { error } = await supabase
+      const { error } = await ((supabase as any)
         .from('spreadsheets')
         .update({ title: newTitle.trim() })
-        .eq('id', id)
+        .eq('id', id))
 
       if (error) throw error
 
