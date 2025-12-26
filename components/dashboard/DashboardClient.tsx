@@ -93,7 +93,7 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
       const original = spreadsheets.find((s) => s.id === id)
       if (!original) return
 
-      const { data, error } = await supabase
+      const { data, error } = await ((supabase as any)
         .from('spreadsheets')
         .insert({
           title: `${original.title} (Copy)`,
@@ -101,7 +101,7 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
           sheet_data: original.sheet_data,
         })
         .select()
-        .single()
+        .single())
 
       if (error) throw error
 
