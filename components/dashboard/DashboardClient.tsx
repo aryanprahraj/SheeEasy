@@ -29,7 +29,7 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
 
     setLoading(true)
     try {
-      const { data, error } = await (supabase
+      const { data, error } = await ((supabase as any)
         .from('spreadsheets')
         .insert({
           title: newTitle.trim(),
@@ -51,9 +51,9 @@ export default function DashboardClient({ spreadsheets: initialSpreadsheets, use
             ],
             activeSheetId: 'sheet1',
           },
-        }) as any)
+        })
         .select()
-        .single()
+        .single())
 
       if (error) throw error
 
