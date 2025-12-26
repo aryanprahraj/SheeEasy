@@ -99,13 +99,13 @@ export default function SpreadsheetEditor({ spreadsheet }: SpreadsheetEditorProp
     setIsSaving(true)
     try {
       const data = getSpreadsheetData()
-      const { error } = await supabase
+      const { error } = await ((supabase as any)
         .from('spreadsheets')
         .update({
           sheet_data: data,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', spreadsheet.id)
+        .eq('id', spreadsheet.id))
 
       if (error) throw error
 
@@ -121,10 +121,10 @@ export default function SpreadsheetEditor({ spreadsheet }: SpreadsheetEditorProp
     setTitle(newTitle)
     
     try {
-      await supabase
+      await ((supabase as any)
         .from('spreadsheets')
         .update({ title: newTitle })
-        .eq('id', spreadsheet.id)
+        .eq('id', spreadsheet.id))
     } catch (error) {
       console.error('Error updating title:', error)
     }
